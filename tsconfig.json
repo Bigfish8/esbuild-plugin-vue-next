@@ -1,0 +1,13 @@
+{
+    "include": ["src"],
+    "compilerOptions": {
+        "strict": true,
+        "outDir": "dist",
+        "rootDir": "src",
+        "esModuleInterop": true,
+        "declaration": true,
+        "target": "esnext",
+        "noUnusedLocals": true,
+        "module": "commonjs"
+    }
+}
