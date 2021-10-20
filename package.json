@@ -1,6 +1,6 @@
 {
     "name": "esbuild-plugin-vue-next",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "description": "an esbuild plugin for vue 3.x SFC",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
