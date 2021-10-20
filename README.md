@@ -7,7 +7,9 @@ building vue 3.x SFC files with esbuild.
 - install
 
 ```
-yarn add esbuild-plugin-vue-next
+npm install -D esbuild-plugin-vue-next
+// or
+yarn add -D esbuild-plugin-vue-next
 ```
 
 - use plugin
@@ -20,7 +22,7 @@ const pluginVue = require('esbuild-plugin-vue-next')
 build({
     entryPoints: ['index.js'], // your entry file
     bundle: true,
-    outfile: 'bundle.js'
+    outfile: 'bundle.js',
     plugins: [pluginVue()]
 })
 ```

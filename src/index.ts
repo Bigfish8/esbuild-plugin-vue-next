@@ -25,7 +25,7 @@ export interface Options {
     >
 }
 
-export default function ({ templateOptions, scriptOptions, styleOptions }: Options = {}): Plugin {
+function plugin({ templateOptions, scriptOptions, styleOptions }: Options = {}): Plugin {
     return {
         name: 'vue',
         setup(build) {
@@ -150,3 +150,8 @@ export default function ({ templateOptions, scriptOptions, styleOptions }: Optio
         }
     }
 }
+
+export default plugin
+
+// for commonjs default require()
+module.exports = plugin
