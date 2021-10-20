@@ -35,3 +35,11 @@ export function convertErrors(errors: ParseErrors, filename: string) {
     }
     return errors.map(e => convert(e))
 }
+
+export function validateDenpendency() {
+    try {
+        require.resolve('@vue/compiler-sfc')
+    } catch {
+        throw new Error('@vue/compiler-sfc has not been installed')
+    }
+}

@@ -2,7 +2,7 @@ import { Plugin } from 'esbuild'
 import fs from 'fs'
 import { parse } from 'querystring'
 import { loadEntry } from './entry'
-import { resolvePath } from './util'
+import { resolvePath, validateDenpendency } from './util'
 import { resolveScript } from './script'
 import { resolveTemplate } from './template'
 import { resolveStyle } from './style'
@@ -24,6 +24,8 @@ export interface Options {
         'modulesOptions' | 'preprocessLang' | 'preprocessOptions' | 'postcssOptions' | 'postcssPlugins'
     >
 }
+
+validateDenpendency()
 
 function plugin({ templateOptions, scriptOptions, styleOptions }: Options = {}): Plugin {
     return {
