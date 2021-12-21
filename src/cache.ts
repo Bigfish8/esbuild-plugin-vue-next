@@ -4,9 +4,6 @@ import hash from 'hash-sum'
 const descriptorCache: Record<string, SFCDescriptor> = {}
 
 export function setDesCache(filename: string, descriptor: SFCDescriptor) {
-    if (descriptorCache[filename]) {
-        throw new Error('descriptor cache has already been set')
-    }
     descriptorCache[filename] = descriptor
 }
 
