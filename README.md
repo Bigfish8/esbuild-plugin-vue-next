@@ -45,6 +45,9 @@ export interface Options {
 
     // style
     styleOptions?: Pick<SFCAsyncStyleCompileOptions, 'modulesOptions' | 'preprocessLang' | 'preprocessOptions' | 'postcssOptions' | 'postcssPlugins'>
+        
+    // other
+    extractCss?: boolean
 }
 
 ```

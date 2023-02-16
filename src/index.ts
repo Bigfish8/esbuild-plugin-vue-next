@@ -23,11 +23,13 @@ export interface Options {
         SFCAsyncStyleCompileOptions,
         'modulesOptions' | 'preprocessLang' | 'preprocessOptions' | 'postcssOptions' | 'postcssPlugins'
     >
+
+    extractCss?: boolean
 }
 
 validateDenpendency()
 
-function plugin({ templateOptions, scriptOptions, styleOptions }: Options = {}): Plugin {
+function plugin({ templateOptions, scriptOptions, styleOptions, extractCss = true }: Options = {}): Plugin {
     return {
         name: 'vue',
         setup(build) {
@@ -130,7 +132,7 @@ function plugin({ templateOptions, scriptOptions, styleOptions }: Options = {}):
                     namespace: 'vue-style'
                 },
                 async args => {
-                    const [filename, dirname, query] = resolvePath(args.path)
+                    const [filename, resolveDir, query] = resolvePath(args.path)
                     const { index, isModule, isNameImport } = parse(query)
                     const moduleWithNameImport = !!(isModule && isNameImport)
                     const { styleCode, errors } = await resolveStyle(
@@ -142,10 +144,15 @@ function plugin({ templateOptions, scriptOptions, styleOptions }: Options = {}):
                         isProd
                     )
                     return {
-                        contents: styleCode,
+                        contents: extractCss ? styleCode : `
+                        {
+                            const el = document.createElement('style');
+                            el.textContent = ${JSON.stringify(styleCode)};
+                            document.head.append(el);
+                        }`,
                         errors,
-                        resolveDir: dirname,
-                        loader: moduleWithNameImport ? 'json' : 'css'
+                        resolveDir,
+                        loader: extractCss ? (moduleWithNameImport ? 'json' : 'css') : 'js',
                     }
                 }
             )

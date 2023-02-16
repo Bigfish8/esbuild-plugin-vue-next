@@ -1,6 +1,6 @@
 {
     "name": "esbuild-plugin-vue-next",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "description": "an esbuild plugin for vue 3.x SFC",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -10,7 +10,8 @@
     "scripts": {
         "test": "jest",
         "format": "prettier --write .",
-        "build": "tsc -p ."
+        "build": "tsc -p .",
+        "prepare": "npm run build"
     },
     "keywords": [
         "esbuild",
