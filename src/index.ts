@@ -1,166 +1,93 @@
+import path from 'path';
 import { Plugin } from 'esbuild'
-import fs from 'fs'
-import { parse } from 'querystring'
 import { loadEntry } from './entry'
-import { resolvePath, validateDenpendency } from './util'
+import { resolvePath } from './util'
 import { resolveScript } from './script'
 import { resolveTemplate } from './template'
-import { resolveStyle } from './style'
-import { SFCTemplateCompileOptions, SFCScriptCompileOptions, SFCAsyncStyleCompileOptions } from '@vue/compiler-sfc'
+import { resolveStyleAsync } from './style'
+import { resolveCompiler } from './compiler'
+import { Options } from './types'
 
-export interface Options {
-    // template
-    templateOptions?: Pick<
-        SFCTemplateCompileOptions,
-        'compiler' | 'preprocessLang' | 'preprocessOptions' | 'compilerOptions' | 'transformAssetUrls'
-    >
+export default function (opts: Options = {}): Plugin {
+	return {
+		name: 'vue',
 
-    // script
-    scriptOptions?: Pick<SFCScriptCompileOptions, 'babelParserPlugins' | 'refSugar'>
+		setup (build) {
+			const { sourcemap } = build.initialOptions
+			const options: Options = {
+				extractCss: true,
+				sourceMap: Boolean(sourcemap),
+				compiler: resolveCompiler(path.resolve()), // @TODO use compiler
+				...opts,
+			}
 
-    // style
-    styleOptions?: Pick<
-        SFCAsyncStyleCompileOptions,
-        'modulesOptions' | 'preprocessLang' | 'preprocessOptions' | 'postcssOptions' | 'postcssPlugins'
-    >
+			// Entry
+			build.onLoad({ filter: /\.vue$/ }, args => {
+				const filename = args.path
+				const { contents, errors } = loadEntry(filename, options);
+				return {
+					contents,
+					errors,
+				}
+			})
 
-    extractCss?: boolean
+			// Script
+			build.onResolve({ filter: /\.vue\?type=script/ }, args => {
+				return {
+					path: args.path,
+					namespace: 'vue-script'
+				}
+			})
+
+			build.onLoad({ filter: /.*/, namespace: 'vue-script' }, args => {
+				const [filename, resolveDir] = resolvePath(args.path)
+				const { contents, warnings, loader } = resolveScript(filename, options)
+
+				return {
+					contents,
+					warnings,
+					resolveDir,
+					loader
+				}
+			})
+
+			// Template
+			build.onResolve({ filter: /\.vue\?type=template/ }, args => {
+				return {
+					path: args.path,
+					namespace: 'vue-template'
+				}
+			})
+
+			build.onLoad({ filter: /.*/, namespace: 'vue-template' }, args => {
+				const [filename, resolveDir] = resolvePath(args.path)
+				const { contents, errors } = resolveTemplate(filename, options)
+				return {
+					contents,
+					errors,
+					resolveDir
+				}
+			})
+
+			// Style
+			build.onResolve({ filter: /\.vue\?type=style/ }, args => {
+				return {
+					path: args.path,
+					namespace: 'vue-style'
+				}
+			})
+
+			build.onLoad({ filter: /.*/, namespace: 'vue-style' }, async args => {
+				const [filename, resolveDir, query] = resolvePath(args.path)
+				const { contents, errors, loader } = await resolveStyleAsync(filename, options, query)
+
+				return {
+					contents,
+					errors,
+					resolveDir,
+					loader,
+				}
+			})
+		}
+	}
 }
-
-validateDenpendency()
-
-function plugin({ templateOptions, scriptOptions, styleOptions, extractCss = true }: Options = {}): Plugin {
-    return {
-        name: 'vue',
-        setup(build) {
-            const { sourcemap } = build.initialOptions
-            const isProd = process.env.NODE_ENV === 'production'
-
-            build.onLoad(
-                {
-                    filter: /\.vue$/
-                },
-                async args => {
-                    const filename = args.path
-                    const source = await fs.promises.readFile(filename, 'utf8')
-                    const { code, errors } = loadEntry(source, filename, !!sourcemap)
-                    return {
-                        contents: code,
-                        errors
-                    }
-                }
-            )
-
-            build.onResolve(
-                {
-                    filter: /\.vue\?type=script/
-                },
-                args => {
-                    return {
-                        path: args.path,
-                        namespace: 'vue-script'
-                    }
-                }
-            )
-
-            build.onLoad(
-                {
-                    filter: /.*/,
-                    namespace: 'vue-script'
-                },
-                args => {
-                    const [filename, dirname] = resolvePath(args.path)
-                    const { code, error, isTs } = resolveScript(
-                        filename,
-                        scriptOptions,
-                        templateOptions,
-                        isProd,
-                        !!sourcemap
-                    )
-                    return {
-                        contents: code,
-                        errors: error,
-                        resolveDir: dirname,
-                        loader: isTs ? 'ts' : 'js'
-                    }
-                }
-            )
-
-            build.onResolve(
-                {
-                    filter: /\.vue\?type=template/
-                },
-                args => {
-                    return {
-                        path: args.path,
-                        namespace: 'vue-template'
-                    }
-                }
-            )
-
-            build.onLoad(
-                {
-                    filter: /.*/,
-                    namespace: 'vue-template'
-                },
-                args => {
-                    const [filename, dirname] = resolvePath(args.path)
-                    const { code, errors } = resolveTemplate(filename, templateOptions, isProd)
-                    return {
-                        contents: code,
-                        errors,
-                        resolveDir: dirname
-                    }
-                }
-            )
-
-            build.onResolve(
-                {
-                    filter: /\.vue\?type=style/
-                },
-                args => {
-                    return {
-                        path: args.path,
-                        namespace: 'vue-style'
-                    }
-                }
-            )
-
-            build.onLoad(
-                {
-                    filter: /.*/,
-                    namespace: 'vue-style'
-                },
-                async args => {
-                    const [filename, resolveDir, query] = resolvePath(args.path)
-                    const { index, isModule, isNameImport } = parse(query)
-                    const moduleWithNameImport = !!(isModule && isNameImport)
-                    const { styleCode, errors } = await resolveStyle(
-                        filename,
-                        styleOptions,
-                        Number(index),
-                        !!isModule,
-                        moduleWithNameImport,
-                        isProd
-                    )
-                    return {
-                        contents: extractCss ? styleCode : `
-                        {
-                            const el = document.createElement('style');
-                            el.textContent = ${JSON.stringify(styleCode)};
-                            document.head.append(el);
-                        }`,
-                        errors,
-                        resolveDir,
-                        loader: extractCss ? (moduleWithNameImport ? 'json' : 'css') : 'js',
-                    }
-                }
-            )
-        }
-    }
-}
-
-export default plugin
-
-// for commonjs default require()
-module.exports = plugin

@@ -1,45 +1,48 @@
 import path from 'path'
 import { Message } from 'esbuild'
-import { parse } from '@vue/compiler-sfc'
+import { CompilerError } from 'vue/compiler-sfc'
 
-export function resolvePath(filePath: string) {
-    const [filename, query] = filePath.split('?', 2)
-    const dirname = path.dirname(filename)
-    return [filename, dirname, query]
+export function resolvePath (filePath: string) {
+	const [filename, query] = filePath.split('?', 2)
+	const dirname = path.dirname(filename)
+	return [filename, dirname, query]
 }
 
-type ParseErrors = ReturnType<typeof parse>['errors']
-export function convertErrors(errors: ParseErrors, filename: string) {
-    const convert = (e: ParseErrors[number]): Message => {
-        let location: Message['location'] = null
-        if ('loc' in e && Object.prototype.hasOwnProperty.call(e, 'loc')) {
-            const start = e.loc!.start
-            const lineText = e.loc!.source
-            location = {
-                file: filename,
-                namespace: '',
-                line: start.line + 1,
-                column: start.column,
-                length: lineText.length,
-                lineText: e.loc!.source,
-                suggestion: ''
-            }
-        }
-        return {
-            pluginName: 'vue',
-            text: e.message,
-            location: location,
-            notes: [],
-            detail: ''
-        }
-    }
-    return errors.map(e => convert(e))
-}
+type resolveError = (string | CompilerError | SyntaxError)
 
-export function validateDenpendency() {
-    try {
-        require.resolve('@vue/compiler-sfc')
-    } catch {
-        throw new Error('@vue/compiler-sfc has not been installed')
-    }
+export function convertErrors (errors: resolveError[], file: string) {
+	const convert = (e: resolveError): Message => {
+		let text = '';
+		let location: Message['location'] = null
+
+		if (typeof e === 'string') {
+			text = e;
+		} else if ('loc' in e && e.loc) {
+			const start = e.loc!.start
+			const lineText = e.loc!.source
+
+			text = e.message;
+			location = {
+				file,
+				namespace: '',
+				line: start.line + 1,
+				column: start.column,
+				length: lineText.length,
+				lineText: e.loc!.source,
+				suggestion: ''
+			}
+		} else {
+			text = e.message
+		}
+
+		return {
+			pluginName: 'vue',
+			text,
+			location,
+			notes: [],
+			detail: ''
+		}
+	}
+
+	return errors.map(convert)
 }

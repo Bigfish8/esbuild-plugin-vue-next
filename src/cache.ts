@@ -1,30 +1,32 @@
-import { SFCDescriptor } from '@vue/compiler-sfc'
-import hash from 'hash-sum'
+import fs from 'fs'
+import { parse, SFCDescriptor } from 'vue/compiler-sfc'
+import { createHash } from 'crypto'
+import { Options } from './types';
 
-const descriptorCache: Record<string, SFCDescriptor> = {}
+export const cache = new Map<string, SFCDescriptor>();
 
-export function setDesCache(filename: string, descriptor: SFCDescriptor) {
-    descriptorCache[filename] = descriptor
+export function createDescriptor (filename: string, { sourceMap, isProduction }: Options) {
+	const source = fs.readFileSync(filename, 'utf-8');
+	const { descriptor, errors } = parse(source, { filename, sourceMap })
+
+	descriptor.id = getHash(filename + (isProduction ? source : ''));
+
+	cache.set(filename, descriptor)
+
+	return {
+		descriptor,
+		errors
+	}
 }
 
-export function getDesCache(filename: string) {
-    let cache = descriptorCache[filename]
-    if (!cache) {
-        throw new Error('no descriptor cache')
-    }
-    return cache
+export function getDescriptor (filename: string) {
+	if (!cache.has(filename)) {
+		throw new Error('no descriptor cache')
+	}
+
+	return cache.get(filename)!
 }
 
-const idCache: Record<string, string> = {}
-
-export function setId(filename: string) {
-    return (idCache[filename] = `data-v-${hash(filename)}`)
-}
-
-export function getId(filename: string) {
-    let id = idCache[filename]
-    if (!id) {
-        throw new Error('no scope id')
-    }
-    return id
+function getHash(filename: string) {
+	return createHash('sha256').update(filename).digest('hex').substring(0, 8)
 }

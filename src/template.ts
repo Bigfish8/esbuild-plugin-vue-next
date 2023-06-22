@@ -1,57 +1,39 @@
-import { getDesCache, getId } from './cache'
-import { compileTemplate, SFCDescriptor, SFCTemplateCompileOptions } from '@vue/compiler-sfc'
-import { PartialMessage } from 'esbuild'
-import { Options } from './index'
+import { compileTemplate, SFCDescriptor, SFCTemplateCompileOptions } from 'vue/compiler-sfc'
+import { OnLoadResult } from 'esbuild'
 import convert from 'convert-source-map'
+import { Options } from './types'
+import { getDescriptor } from './cache'
+import { convertErrors } from './util'
 
-export function resolveTemplate(filename: string, options: Options['templateOptions'] = {}, isProd: boolean) {
-    const descriptor = getDesCache(filename)
+export function resolveTemplate (filename: string, options: Options): OnLoadResult {
+	const descriptor = getDescriptor(filename)
+	const templateOptions = getTemplateOptions(descriptor, options);
+	const { code, errors, map } = compileTemplate(templateOptions)
 
-    let { code, errors, map } = compileTemplate(getTemplateOptions(descriptor, options, isProd))
+	let contents = code;
+	if (map) contents += convert.fromObject(map).toComment()
 
-    if (map) {
-        code += convert.fromObject(map).toComment()
-    }
-
-    const convertedErrors: PartialMessage[] = errors.map(e => {
-        if (typeof e === 'string') {
-            return {
-                text: e
-            }
-        } else {
-            return {
-                text: e.message
-            }
-        }
-    })
-
-    return {
-        code,
-        errors: convertedErrors
-    }
+	return {
+		contents,
+		errors: convertErrors(errors, filename)
+	}
 }
 
-export function getTemplateOptions(
-    descriptor: SFCDescriptor,
-    options: Options['templateOptions'],
-    isProd: boolean
-): SFCTemplateCompileOptions {
-    const filename = descriptor.filename
-    const scopeId = getId(filename)
-    return {
-        source: descriptor.template!.content,
-        filename,
-        id: scopeId,
-        scoped: descriptor.styles.some(s => s.scoped),
-        isProd,
-        inMap: descriptor.template!.map,
-        compiler: options?.compiler,
-        preprocessLang: options?.preprocessLang,
-        preprocessOptions: options?.preprocessOptions,
-        compilerOptions: {
-            ...options?.compilerOptions,
-            scopeId
-        },
-        transformAssetUrls: options?.transformAssetUrls
-    }
+export function getTemplateOptions (descriptor: SFCDescriptor, options: Options): SFCTemplateCompileOptions {
+	const scoped = descriptor.styles.some(s => s.scoped)
+
+	return {
+		...options.template,
+		id: descriptor.id,
+		filename: descriptor.filename,
+		source: descriptor.template!.content,
+		scoped,
+		isProd: options.isProduction,
+		inMap: descriptor.template!.map,
+		compilerOptions: {
+			...options.template?.compilerOptions,
+			scopeId: scoped ? `data-v-${descriptor.id}` : undefined,
+			sourceMap: options.sourceMap,
+		},
+	}
 }

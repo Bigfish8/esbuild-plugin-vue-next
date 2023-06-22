@@ -1,4 +1,4 @@
-# esbuild-plugin-vue-next
+# esbuild-plugin-vue
 
 building vue 3.x SFC files with esbuild.
 

@@ -1,54 +1,38 @@
-import { compileScript } from '@vue/compiler-sfc'
-import { getDesCache, getId } from './cache'
-import { PartialMessage } from 'esbuild'
-import { Options } from './index'
-import { getTemplateOptions } from './template'
+import { compileScript } from 'vue/compiler-sfc'
+import { OnLoadResult } from 'esbuild'
 import convert from 'convert-source-map'
+import { Options } from './types'
+import { getDescriptor } from './cache'
+import { getTemplateOptions } from './template'
+import { convertErrors } from './util'
 
-export function resolveScript(
-    filename: string,
-    scriptOptions: Options['scriptOptions'] = {},
-    templateOptions: Options['templateOptions'] = {},
-    isProd: boolean,
-    sourcemap: boolean
-) {
-    const descriptor = getDesCache(filename)
-    const error: PartialMessage[] = []
-    const { script, scriptSetup } = descriptor
-    const isTs = (script && script.lang === 'ts') || (scriptSetup && scriptSetup.lang === 'ts')
+export function resolveScript (filename: string, options: Options): OnLoadResult {
+	const descriptor = getDescriptor(filename)
+	let contents = 'export default {}'
 
-    let code = 'export default {}'
-    if (!descriptor.script && !descriptor.scriptSetup) {
-        return {
-            code
-        }
-    }
+	if (!descriptor.script && !descriptor.scriptSetup) {
+		return {
+			contents
+		}
+	}
 
-    const scopeId = getId(filename)
-    try {
-        const res = compileScript(descriptor, {
-            id: scopeId,
-            isProd,
-            sourceMap: sourcemap,
-            inlineTemplate: true,
-            babelParserPlugins: scriptOptions.babelParserPlugins,
-            refTransform: true,
-            refSugar: scriptOptions.refSugar,
-            templateOptions: descriptor.template ? getTemplateOptions(descriptor, templateOptions, isProd) : {}
-        })
-        code = res.content
-        if (res.map) {
-            code += convert.fromObject(res.map).toComment()
-        }
-    } catch (e: any) {
-        error.push({
-            text: e.message
-        })
-    }
+	const isTs = (descriptor.script && descriptor.script.lang === 'ts') || (descriptor.scriptSetup && descriptor.scriptSetup.lang === 'ts')
 
-    return {
-        code,
-        error,
-        isTs
-    }
+	const { content, map, warnings } = compileScript(descriptor, {
+		...options.script,
+		id: descriptor.id,
+		isProd: options.isProduction,
+		inlineTemplate: true,
+		templateOptions: descriptor.template ? getTemplateOptions(descriptor, options) : {},
+		sourceMap: options.sourceMap,
+	})
+
+	contents = content
+	if (map) contents += convert.fromObject(map).toComment()
+
+	return {
+		contents,
+		warnings: convertErrors(warnings || [], filename),
+		loader: isTs ? 'ts' : 'js'
+	}
 }

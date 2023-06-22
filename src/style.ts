@@ -1,54 +1,55 @@
-import { compileStyleAsync, SFCStyleCompileOptions } from '@vue/compiler-sfc'
-import { PartialMessage } from 'esbuild'
-import { getDesCache, getId } from './cache'
-import { Options } from './index'
+import { compileStyleAsync, SFCStyleCompileOptions } from 'vue/compiler-sfc'
+import { Loader, OnLoadResult } from 'esbuild'
 import convert from 'convert-source-map'
+import { parse } from 'querystring'
+import { getDescriptor } from './cache'
+import { Options } from './types'
+import { convertErrors } from './util'
 
-export async function resolveStyle(
-    filename: string,
-    styleOptions: Options['styleOptions'] = {},
-    index: number,
-    isModule: boolean,
-    moduleWithNameImport: boolean,
-    isProd: boolean
-) {
-    const descriptor = getDesCache(filename)
-    const styleBlock = descriptor.styles[index]
-    const scopeId = getId(filename)
+export async function resolveStyleAsync (filename: string, options: Options, query: string): Promise<OnLoadResult> {
+	const { index, isModule, isNameImport } = parse(query)
+	const moduleWithNameImport = !!(isModule && isNameImport)
 
-    const res = await compileStyleAsync({
-        source: styleBlock.content,
-        filename: descriptor.filename,
-        id: scopeId,
-        scoped: styleBlock.scoped,
-        trim: true,
-        isProd,
-        inMap: styleBlock.map,
-        preprocessLang: styleBlock.lang as SFCStyleCompileOptions['preprocessLang'],
-        preprocessOptions: styleOptions.preprocessOptions,
-        postcssOptions: styleOptions.postcssOptions,
-        postcssPlugins: styleOptions.postcssPlugins,
-        modules: isModule,
-        modulesOptions: styleOptions.modulesOptions
-    })
-    let styleCode: string
-    if (moduleWithNameImport) {
-        // css-modules JSON file
-        styleCode = JSON.stringify(res.modules!)
-    } else {
-        // normal css content
-        styleCode = res.code
-    }
+	const descriptor = getDescriptor(filename)
+	const styleBlock = descriptor.styles[Number(index)]
 
-    if (res.map && !moduleWithNameImport) {
-        styleCode += convert.fromObject(res.map).toComment({ multiline: true })
-    }
-    const errors: PartialMessage[] = res.errors.map(e => ({
-        text: e.message
-    }))
+	function getLoader (): Loader {
+		if (moduleWithNameImport) return 'json'
+		if (!options.extractCss) return 'js'
+		return 'css'
+	}
 
-    return {
-        errors,
-        styleCode
-    }
+	const { code, modules, map, errors } = await compileStyleAsync({
+		...options.style,
+		id: `data-v-${descriptor.id}`,
+		filename: descriptor.filename,
+		source: styleBlock.content,
+		scoped: styleBlock.scoped,
+		trim: true,
+		isProd: options.isProduction,
+		inMap: styleBlock.map,
+		preprocessLang: styleBlock.lang as SFCStyleCompileOptions['preprocessLang'],
+		modules: !!isModule
+	})
+
+	let contents = moduleWithNameImport ? JSON.stringify(modules) : code;
+
+	if (map && !moduleWithNameImport) {
+		contents += convert.fromObject(map).toComment({ multiline: true })
+	}
+
+	if (!options.extractCss) {
+		contents = `
+		{
+			const el = document.createElement('style');
+			el.textContent = ${JSON.stringify(contents)};
+			document.head.append(el);
+		}`
+	}
+
+	return {
+		contents,
+		errors: convertErrors(errors, filename),
+		loader: getLoader()
+	}
 }
